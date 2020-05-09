@@ -19,7 +19,11 @@ open Headache
 
 (** {2 Global Configuration} *)
 
+let create_from_detected = ref false
 let to_stdout = ref false
+let profile = ref None
+let header_file = ref None
+let config_file = ref None
 
 (***************************************************************************)
 (** {2 Configuration files} *)
@@ -215,26 +219,52 @@ type action =
   | Remove
   | Extract
 
+let action = ref (Create ([], 0))
+let files_to_analyse = ref []
+
+let detect_incoherences () =
+  match !create_from_detected, !profile, !to_stdout, !header_file, !config_file, !files_to_analyse with
+  | true, _, _, Some _, _, _ -> failwith "Cannot specify both -a and -h"
+  | _, Some _, _, Some _, Some _, _ -> failwith "-p is useless when -h and -c are both specified"
+  | _, _, true, _, _, l when List.length l > 1 -> failwith "--to-stdout should not be used with more than one file"
+  | _, _, _, _, _, _  -> ()
+
+let config () =
+  let set_header s = let (header, header_width) = (read_headerfile s) in action := Create (header, header_width) in
+  let (default_conf, default_header) = Config_detect.find_files !profile in
+  match !header_file with
+  | Some f -> set_header f
+  | None -> if (!create_from_detected) then (
+    match default_header with
+    | Some f -> print_string f; print_newline(); set_header f
+    | None -> ()
+  );
+  match !config_file with
+  | Some f -> read_configfile f
+  | None -> (match default_conf with Some f -> read_configfile f | None -> ());
+  ()
+
+let loop = List.iter (fun filename ->
+  match !action with
+    | Create (header, header_width) -> create_header header header_width filename
+    | Remove -> remove_header filename
+    | Extract -> extract_header filename)
+
 
 let main () =
-
-  let action = ref (Create ([], 0)) in
-
-  let anonymous filename =
-    match !action with
-      Create (header, header_width) -> create_header header header_width filename
-    | Remove -> remove_header filename
-    | Extract -> extract_header filename
-  in
 
   Arg.parse [
 
   "-h",
-  Arg.String (fun s -> let (header, header_width) = (read_headerfile s) in action := Create (header, header_width)),
+  Arg.String (fun s -> header_file := Some s),
   "<header-file>  Create headers with text from the header file";
 
+  "-a",
+  Arg.Unit (fun () -> create_from_detected := true),
+  "               Create header using detected header file";
+
   "-c",
-  Arg.String read_configfile,
+  Arg.String (fun c -> config_file := Some c),
   "<config-file>  Read the given configuration file";
 
   "-r",
@@ -249,11 +279,13 @@ let main () =
   Arg.Unit (fun () -> to_stdout := true),
   {|       Does not modify in place, writes to stdout instead
                     Should only be used if there is only one input file
-                    No effect if used in extract mode (-e)|}
-
+                    No effect if used in extract mode (-e)|};
+  "-p",
+  Arg.String (fun p -> profile := Some p),
+  {|<profile>     Looks up configuration and header files according to profile given|}
   ]
 
-    anonymous
+    (fun filename -> files_to_analyse := filename :: !files_to_analyse)
 
     (sprintf
        "%s, version %s\n\
@@ -261,10 +293,8 @@ let main () =
        Process headers of given files\n\
        Optional arguments are:"
     Info.name Info.version Info.name);
-
-
-  ()
-
+  config ();
+  loop (List.rev (!files_to_analyse))
 
 
 let () =

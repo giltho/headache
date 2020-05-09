@@ -1,6 +1,6 @@
 (library
      (name headache)
-     (modules Model Config_lex Config_parse Config Info Skip)
+     (modules Model Config_lex Config_parse Config Info Skip Config_detect)
      (libraries camomile str bytes)
 )
 
