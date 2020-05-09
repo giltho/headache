@@ -17,6 +17,9 @@ open Printf
 open Config_builtin
 open Headache
 
+(** {2 Global Configuration} *)
+
+let to_stdout = ref false
 
 (***************************************************************************)
 (** {2 Configuration files} *)
@@ -141,6 +144,12 @@ let pipe_file f filename =
   Sys.remove filename;
   Sys.rename tempname filename
 
+let pipe_stdout f filename =
+  let ic = open_in filename in
+  let oc = stdout in
+  f ic oc;
+  close_in ic
+
 let rd_pipe_file f filename =
   let ic = open_in filename in
   f ic;
@@ -161,7 +170,8 @@ let copy ic oc =
 let create_header header header_width filename =
   let generator = find_generator filename in
   let skip_lst = find_skips filename in
-  pipe_file (fun ic oc ->
+  let pipe = if !to_stdout then pipe_stdout else pipe_file in
+  pipe (fun ic oc ->
     let () = Skip.skip skip_lst ic (Some oc) in
     let line = generator.Model.remove ic in
     let () = Skip.skip skip_lst ic (Some oc) in
@@ -175,7 +185,8 @@ let create_header header header_width filename =
 let remove_header filename =
   let generator = find_generator filename in
   let skip_lst = find_skips filename in
-  pipe_file (fun ic oc ->
+  let pipe = if !to_stdout then pipe_stdout else pipe_file in
+  pipe (fun ic oc ->
     let () = Skip.skip skip_lst ic (Some oc) in
     let line = generator.Model.remove ic in
     let () = Skip.skip skip_lst ic (Some oc) in
@@ -233,6 +244,12 @@ let main () =
   "-e",
   Arg.Unit (fun () -> action := Extract),
   "               Extract headers from files";
+
+  "--to-stdout",
+  Arg.Unit (fun () -> to_stdout := true),
+  {|       Does not modify in place, writes to stdout instead
+                    Should only be used if there is only one input file
+                    No effect if used in extract mode (-e)|}
 
   ]
 
