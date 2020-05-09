@@ -85,6 +85,16 @@ existing ones are automatically removed.
 >>
    removes any existing in files `foo.c`, `bar.ml` and `bar.mli`. Files
 which do not have a header are kept unchanged.
+
+The behaviour of both previous commands can be modified using `--to-stdout`, which will write the output
+to stdout instead of overwritting the files in place.
+Examples:
+
+<<
+    headache -h myheader --to-stdout foo.c bar.ml bar.mli
+    headache -r --to-stdout foo.c bar.ml bar.mli
+>>
+
   The current headers of files can be extracted: 
 <<
     headache -e foo.c bar.ml bar.mli
